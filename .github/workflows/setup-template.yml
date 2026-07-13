@@ -1,0 +1,47 @@
+name: Setup Template
+
+on:
+    push:
+        branches:
+            - master
+            - main
+
+jobs:
+    setup:
+        # This ensures the action ONLY runs for new projects created from the template,
+        # and NOT for your main development repository.
+        if: github.event.repository.is_template == false
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check if this is the first push
+              id: check
+              run: |
+                  if [ "$(git rev-list --count HEAD)" -eq 1 ]; then
+                    echo "first_push=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "first_push=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Remove template-specific files
+              if: steps.check.outputs.first_push == 'true'
+              run: |
+                  # Remove the changelog so the new project starts fresh
+                  rm -f CHANGELOG.md
+                  # Remove this workflow file so it doesn't run on subsequent pushes
+                  rm -f .github/workflows/setup-template.yml
+
+            - name: Commit cleanup changes
+              if: steps.check.outputs.first_push == 'true'
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add -A
+                  git commit -m "chore: remove template setup files after initial setup" || echo "No changes to commit"
+                  git push
